@@ -3,13 +3,15 @@ const Discord = require('discord.js');
 
 class DiscordHandler {
 
-  constructor(config) {
+  constructor(config, callback) {
     this.config = config;
     this.client = new Discord.Client();
     let client = this.client;
 
     client.on('ready', () => {
       console.log(`Logged in as ${client.user.tag}!`);
+      if (callback)
+        callback();
     });
     // client.on('raw', console.log);
     client.on('shardError', error => {
@@ -31,8 +33,9 @@ class DiscordHandler {
 
   async changeName(online) {
     let channel = await this.client.channels.resolve(this.config.channel_Id).fetch(true);
-
-    return channel.edit({ name: (online ? this.config.online_text : this.config.offline_text) })
+    let name = (online ? this.config.online_text : this.config.offline_text);
+    console.log(`Stream Changed Status: ${name}`);
+    return channel.edit({ name: name})
   }
 
 
