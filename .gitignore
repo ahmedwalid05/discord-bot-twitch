@@ -5,3 +5,4 @@ dist
 config/config.json
 log.log
 package-lock.json
+test.js
