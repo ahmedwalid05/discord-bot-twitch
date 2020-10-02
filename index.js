@@ -98,7 +98,7 @@ async function start() {
 
         logger.info(`Stream Status Changed: ${name}`);
         discordHandler.waitForTime(name).then(() => {
-            logger.info(`Changing Channel Name Done: ${name}`)
+            // logger.info(`Changing Channel Name Done: ${name}`)
         }).
             catch((err) => {
                 if (err.canceled) {

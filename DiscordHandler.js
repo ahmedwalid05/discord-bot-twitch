@@ -10,6 +10,7 @@ class DiscordHandler {
     this.client = new Discord.Client();
     let client = this.client;
     this.allowedToWork = 1;
+    this.taskPool = []
 
     client.on('ready', () => {
       logger.info(`Logged in as ${client.user.tag}!`);
@@ -37,16 +38,9 @@ class DiscordHandler {
   }
 
   async changeName(name) {
-    logger.debug
-    this.allowedToWork--;
-    if (this.allowedToWork > 0) {
-      return Promise.reject({
-        canceled: true,
-        reason: "A new status was found"
-      })
-    }
+
     let channel = await this.client.channels.resolve(this.config.channel_Id).fetch(true);
-    // let name = (online ? this.config.online_text : this.config.offline_text);
+
 
     if (name.toLowerCase().localeCompare(channel.name) == 0) {
       return Promise.reject({
@@ -61,20 +55,35 @@ class DiscordHandler {
     // return Promise.resolve();
   }
 
+  async fireTaskQueue() {
+    const task = this.taskPool[this.taskPool.length - 1];
+    if (task) {
+      this.taskPool = [];
+      return task();
+    }
+    return Promise.reject({
+      canceled: true,
+      reason: "A new status was found"
+    });
+
+  }
   async waitForTime(name) {
     logger.debug(`Scheduling a new channel change event`)
-    // this.valueToExecute = name;
+
+    this.taskPool.push(() => {
+      return this.changeName(name);
+    })
+
     if (this.lastChannelUpdateTime) {
       let timeDiff = Date.now() - this.lastChannelUpdateTime;
       let cooldown = this.config.cooldown_time * 1000 - timeDiff;
-      this.allowedToWork++;
       if (cooldown > 0) {
         logger.info(`Sleeping For ${cooldown / 1000} seconds`)
         await this.sleep(cooldown);
       }
-
     }
-    return this.changeName(name);
+    return this.fireTaskQueue();
+    // return this.changeName(name);
 
     // return promise
   }
