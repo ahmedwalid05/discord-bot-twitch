@@ -3,4 +3,5 @@ node_modules
 .vscode
 dist
 config/config.json
-config
+log.log
+package-lock.json
