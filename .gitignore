@@ -1,8 +1,0 @@
-node_modules
-node_modules
-.vscode
-dist
-config/config.json
-log.log
-package-lock.json
-test.js
