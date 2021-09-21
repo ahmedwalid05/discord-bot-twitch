@@ -1,14 +1,14 @@
-
 {
-    "hostname" :"hostname.com",
-    "port" : 8080,
-    "channel_Id" : "760992212385267766", 
-    "twitch_user_id" :"xqcow", 
-    "offline_text": "Offline", 
-    "online_text" :"🔴Online", 
-    "discord_bot_token" :"YOURBOTOKEN.Mkj534oli4l5k35jlk43.2324234mh432",
-    "twitch_clientId" :"TWITCH APPLICATION ID",
-    "twitch_accessToken":"TWITCH CLIENT SECRET",
-    "cooldown_time": 300,
-    "log_filename" :"log.log"
+  "external_hostname": "hostname.com",
+  "internal_port": 8080,
+  "channel_Id": "760992212385267766",
+  "twitch_user_id": "xqcow",
+  "offline_text": "Offline",
+  "online_text": "🔴Online",
+  "discord_bot_token": "YOURBOTOKEN.Mkj534oli4l5k35jlk43.2324234mh432",
+  "twitch_clientId": "TWITCH APPLICATION ID",
+  "twitch_accessToken": "TWITCH CLIENT SECRET",
+  "twitch_randomSecret": "A Random Secret that should not be changed between 11 and 55 chars",
+  "cooldown_time": 300,
+  "log_filename": "log.log"
 }

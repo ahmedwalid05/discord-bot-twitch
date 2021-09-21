@@ -1,115 +1,86 @@
 //Twitch Library
-const { SimpleAdapter, ReverseProxyAdapter, WebHookListener } = require('twitch-webhooks');
-const { ApiClient, HelixStream } = require('twitch');
-const { ClientCredentialsAuthProvider } = require('twitch-auth');
+const { EventSubListener, ReverseProxyAdapter } = require("@twurple/eventsub");
+const { ApiClient } = require("@twurple/api");
+const { ClientCredentialsAuthProvider } = require("@twurple/auth");
+
 //config file
-const config = require('./config/config');
+const config = require("./config/config");
 
-
-//Logger
-const { format, loggers, transports } = require('winston')
-const { combine, timestamp, label, printf } = format;
-
-loggers.add('default', {
-    format: combine(
-        timestamp(),
-        printf(({ level, message, timestamp }) => {
-            return `${timestamp} ${level}: ${message}`;
-        })),
-    transports: [
-        new transports.Console({ 'timestamp': true, level: 'info' }),
-        (config.log_filename)?new transports.File({ 'timestamp': true, level: 'debug', filename: config.log_filename }):false,
-
-    ]
-})
-const logger = loggers.get('default');
-
-
+const { logger } = require("./init");
 
 //Discord Bot Handler
-const DiscordHandler = require('./DiscordHandler')
+const DiscordHandler = require("./DiscordHandler");
 
-//Variable to limit number of name changes 
-var lastCheckedStatus = false;
+//Variable to limit number of name changes
+let lastCheckedStatus = false;
 
-
-function checkConfig() {
-    let requiredItems = ["hostname", "port", "channel_Id",
-        "twitch_user_id", "offline_text", "online_text", "discord_bot_token", "twitch_clientId",
-        "twitch_accessToken", "cooldown_time"]
-    for (let i = 0; i < requiredItems.length; i++) {
-        let item = requiredItems[i];
-        if (!config[item]) {
-            logger.warn(`Please Include '${item}' in the config.json file`)
-            return false;
-        }
-    }
-
-    return true;
-
-}
 async function start() {
-    // console.log(checkConfig())
-    if (!checkConfig()) {
+  const clientId = config.twitch_clientId;
+  const accessToken = config.twitch_accessToken;
+  const authProvider = new ClientCredentialsAuthProvider(clientId, accessToken);
+  const apiClient = new ApiClient({ authProvider });
 
-        logger.error("Config Check failed\nExisting")
-        return;
+  const user = await apiClient.users.getUserByName(config.twitch_user_id);
+  if (!user) {
+    logger.error("User Not Found");
+    return;
+  }
+
+  const adapter = new ReverseProxyAdapter({
+    hostName: config.external_hostname,
+    port: config.internal_port,
+  });
+
+  const listener = new EventSubListener({
+    adapter,
+    apiClient,
+    secret: "randomFixedString",
+  });
+
+  const discordHandler = new DiscordHandler(config, async () => {
+    //Setting it the first Time
+    const stream = await apiClient.streams.getStreamByUserId(user.id);
+    handleStreamStatusChanged(!!stream);
+  });
+
+  const handleStreamStatusChanged = async (isOnline) => {
+    if (lastCheckedStatus == isOnline) {
+      logger.debug(`Stream Status Changed, but Name will not be changed`);
+      return;
     }
-    logger.info("Config Check Passed")
+    lastCheckedStatus = isOnline;
 
-    const clientId = config.twitch_clientId
-    const accessToken = config.twitch_accessToken;
-    const authProvider = new ClientCredentialsAuthProvider(clientId, accessToken);
-    const apiClient = new ApiClient({ authProvider });
-    const user = await apiClient.kraken.users.getUserByName(config.twitch_user_id)
-    if (!user) {
-        logger.error("User Not Found");
-        return;
-    }
+    var name = (isOnline ? config.online_text : config.offline_text).toString();
 
-
-    const listener = new WebHookListener(apiClient, new SimpleAdapter({
-        hostName: config.hostname,
-        listenerPort: config.port,
-
-    }));
-
-
-    const discordHandler = new DiscordHandler(config, async () => {
-        //Setting it the first Time 
-        let twitchChannel = await apiClient.kraken.channels.getChannel(user);
-        let stream = await twitchChannel.getStream();
-        lastCheckedStatus = !!stream;
-        handleStreamChange(stream);
-    });
-
-
-    const subscription = await listener.subscribeToStreamChanges(user._data._id, async (stream) => {
-        if (!!stream != lastCheckedStatus) {
-            handleStreamChange(stream)
+    logger.info(`Stream Status Changed: ${name}`);
+    discordHandler
+      .waitForTimeAndChangeName(name)
+      .then(() => {
+        logger.info(`Changing Channel Name Done: ${name}`);
+      })
+      .catch((err) => {
+        if (err.canceled) {
+          logger.debug(`Canceled: ${err.reason}`);
         } else {
-            logger.debug(`Stream Status Changed. Name will not be changed`)
+          logger.error(err);
         }
-        lastCheckedStatus = !!stream;
+      });
+  };
 
-    });
-    const handleStreamChange = async (stream) => {
-        var name = (!!stream ? config.online_text : config.offline_text).toString();
+  await listener.subscribeToStreamOnlineEvents(user.id, () =>
+    handleStreamStatusChanged(true)
+  );
 
-        logger.info(`Stream Status Changed: ${name}`);
-        discordHandler.waitForTime(name).then(() => {
-            // logger.info(`Changing Channel Name Done: ${name}`)
-        }).
-            catch((err) => {
-                if (err.canceled) {
-                    logger.debug(`Canceled: ${err.reason}`)
-                } else {
-                    logger.error(err)
-                }
+  await listener.subscribeToStreamOfflineEvents(user.id, () =>
+    handleStreamStatusChanged(false)
+  );
 
-            })
-    }
-    logger.info('Subbed To Twitch Listener')
-    listener.listen();
+  try {
+    await listener.listen();
+    logger.info("Subbed To Twitch Listener");
+  } catch (error) {
+    if (error.message !== "subscription already exists") logger.error(error);
+    else logger.debug(error);
+  }
 }
-start()
+start();
