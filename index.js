@@ -34,7 +34,7 @@ async function start() {
   const listener = new EventSubListener({
     adapter,
     apiClient,
-    secret: "randomFixedString",
+    secret: config.twitch_randomSecret,
   });
 
   const discordHandler = new DiscordHandler(config, async () => {
@@ -66,6 +66,7 @@ async function start() {
         }
       });
   };
+  await apiClient.eventSub.deleteAllSubscriptions();
 
   await listener.subscribeToStreamOnlineEvents(user.id, () =>
     handleStreamStatusChanged(true)
